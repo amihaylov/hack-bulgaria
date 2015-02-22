@@ -13,6 +13,7 @@ public class TestDijkstra {
 
   private List<Vertex> nodes;
   private List<Edge> edges;
+  private int distance = 0;
 
   @Test
   public void testExcute() {
@@ -40,15 +41,25 @@ public class TestDijkstra {
     Graph graph = new Graph(nodes, edges);
     DijkstraAlgorithm dijkstra = new DijkstraAlgorithm(graph);
     dijkstra.execute(nodes.get(0));
-    LinkedList<Vertex> path = dijkstra.getPath(nodes.get(10));
+    LinkedList<Vertex> path = dijkstra.getPath(nodes.get(9));
     
+    for (int i=0; i<path.size()-1;i++) {
+    	String source = path.get(i).getId();
+    	String dest = path.get(i+1).getId();
+    	for (int j=0; j<edges.size();j++) {
+    		if((edges.get(j).getSource().getId()==source)&&(edges.get(j).getDestination().getId()==dest)) {
+    			distance+=edges.get(j).getWeight();
+    		}
+    	}
+    }
+    	
     assertNotNull(path);
     assertTrue(path.size() > 0);
     
     for (Vertex vertex : path) {
       System.out.println(vertex);
     }
-    
+    System.out.println("Distance = " + distance);
   }
 
   private void addLane(String laneId, int sourceLocNo, int destLocNo,

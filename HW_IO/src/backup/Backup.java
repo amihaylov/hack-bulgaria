@@ -31,6 +31,7 @@ package backup;
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import java.nio.charset.Charset;
 import java.nio.file.*;
 
 import static java.nio.file.StandardCopyOption.*;
@@ -39,6 +40,7 @@ import java.nio.file.attribute.*;
 
 import static java.nio.file.FileVisitResult.*;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -50,6 +52,7 @@ import java.util.*;
 
 public class Backup {
 	static Scanner sc = new Scanner(System.in);
+	static List<String> exclusionList = new ArrayList<String>();
 
 	/**
 	 * Returns {@code true} if okay to overwrite a file ("cp -i")
@@ -64,45 +67,59 @@ public class Backup {
 	/**
 	 * Copy source file to target location. If {@code prompt} is true then
 	 * prompt user to overwrite target if it exists. The {@code preserve}
-	 * parameter determines if file attributes should be copied/preserved.
+	 * parameter determines if file attributes should be copied/preserved. The
+	 * {@code excludeList} parameter contains list of directories/files to be
+	 * excluded from copying. If null then there is no exclusion.
 	 */
 	static void copyFile(Path source, Path target, boolean prompt,
-			boolean preserve) {
-		CopyOption[] options = (preserve) ? new CopyOption[] { COPY_ATTRIBUTES,
-				REPLACE_EXISTING } : new CopyOption[] { REPLACE_EXISTING };
+			boolean preserve, List<String> excludeList) {
+		boolean exclude = false;
+		if (excludeList != null)
+			for (int i = 0; i < excludeList.size(); i++)
+				if (source.toString().contains(excludeList.get(i)))
+					exclude = true;
 
-		String absolutePath = target.toAbsolutePath().toString();
-		String filePath = absolutePath.substring(0,
-				absolutePath.lastIndexOf(File.separator));
-		String fileName = target.getFileName().toString();
-		LocalDate localDate = LocalDate.now();
-		String existingFilePath = filePath + "\\" + "_HISTORY_"
-				+ localDate.toString() + "\\" + fileName;
-		Path backupPath = Paths.get(existingFilePath);
-		
-		//If the file is existing, create a backup directory and copy the old file there
-		if (Files.exists(target)) {
-			Path dir = Paths.get(filePath + "\\" + "_HISTORY_"
-					+ localDate.toString());
-			try {
-				Files.createDirectories(dir);
-			} catch (IOException e) {
-				System.err.format("Unable to create:  %s: %s%n", dir, e);
+		if (!exclude) {
+			CopyOption[] options = (preserve) ? new CopyOption[] {
+					COPY_ATTRIBUTES, REPLACE_EXISTING }
+					: new CopyOption[] { REPLACE_EXISTING };
+
+			String absolutePath = target.toAbsolutePath().toString();
+			String filePath = absolutePath.substring(0,
+					absolutePath.lastIndexOf(File.separator));
+			String fileName = target.getFileName().toString();
+			LocalDate localDate = LocalDate.now();
+			String existingFilePath = filePath + "\\" + "_HISTORY_"
+					+ localDate.toString() + "\\" + fileName;
+			Path backupPath = Paths.get(existingFilePath);
+
+			// If the file is existing, create a backup directory and copy the
+			// old file there
+			if (Files.exists(target)) {
+				Path dir = Paths.get(filePath + "\\" + "_HISTORY_"
+						+ localDate.toString());
+				try {
+					Files.createDirectories(dir);
+				} catch (IOException e) {
+					System.err.format("Unable to create:  %s: %s%n", dir, e);
+				}
+				try {
+					Files.copy(target, backupPath, options);
+				} catch (IOException x) {
+					System.err.format("Unable to copy: %s: %s%n", target, x);
+				}
 			}
-			try {
-				Files.copy(target, backupPath, options);
-			} catch (IOException x) {
-				System.err.format("Unable to copy: %s: %s%n", target, x);
+
+			if (!prompt || Files.notExists(target) || okayToOverwrite(target)) {
+				try {
+					Files.copy(source, target, options);
+				} catch (IOException x) {
+					System.err.format("Unable to copy: %s: %s%n", source, x);
+				}
 			}
 		}
-
-		if (!prompt || Files.notExists(target) || okayToOverwrite(target)) {
-			try {
-				Files.copy(source, target, options);
-			} catch (IOException x) {
-				System.err.format("Unable to copy: %s: %s%n", source, x);
-			}
-		}
+		else
+			System.out.println(source + " excluded");
 	}
 
 	/**
@@ -113,7 +130,7 @@ public class Backup {
 		private final Path target;
 		private final boolean prompt;
 		private final boolean preserve;
-
+	
 		TreeCopier(Path source, Path target, boolean prompt, boolean preserve) {
 			this.source = source;
 			this.target = target;
@@ -144,7 +161,7 @@ public class Backup {
 		@Override
 		public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
 			copyFile(file, target.resolve(source.relativize(file)), prompt,
-					preserve);
+					preserve, exclusionList);
 			return CONTINUE;
 		}
 
@@ -228,7 +245,25 @@ public class Backup {
 
 		// check if target is a directory
 		boolean isDir = Files.isDirectory(target);
+		
+		//TODO Create an exclusion file and check if everything works. P.s. File is not read :/
+		File file = new File("C:/exclusion.txt");
+		Charset charset = Charset.forName("UTF-8");
+		Path fileP;
+		fileP = file.toPath();
 
+		try (BufferedReader reader = Files.newBufferedReader(fileP, charset)) {
+			String line = null;
+			while ((line = reader.readLine()) != null && (line = reader.readLine()) != "" ) {
+				exclusionList.add(line);
+			}
+		} catch (IOException x) {
+			System.err.format("IOException: %s%n", x);
+		}
+		if (exclusionList.isEmpty())
+			exclusionList = null;
+
+		
 		// copy each source file/directory to target
 		for (i = 0; i < source.length; i++) {
 			Path dest = (isDir) ? target.resolve(source[i].getFileName())
@@ -247,7 +282,7 @@ public class Backup {
 					System.err.format("%s: is a directory%n", source[i]);
 					continue;
 				}
-				copyFile(source[i], dest, prompt, preserve);
+				copyFile(source[i], dest, prompt, preserve, exclusionList);
 			}
 		}
 		sc.close();
