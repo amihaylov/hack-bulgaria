@@ -246,7 +246,7 @@ public class Backup {
 		// check if target is a directory
 		boolean isDir = Files.isDirectory(target);
 		
-		//TODO Create an exclusion file and check if everything works. P.s. File is not read :/
+		//TODO Create an exclusion file and check if everything works. P.s. Not working, file is not being read :/
 		File file = new File("C:/exclusion.txt");
 		Charset charset = Charset.forName("UTF-8");
 		Path fileP;
